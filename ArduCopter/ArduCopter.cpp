@@ -129,6 +129,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 #endif
     SCHED_TASK_CLASS(AP_Notify,            &copter.notify,              update,          50,  90),
     SCHED_TASK(one_hz_loop,            1,    100),
+    SCHED_TASK(update_DYT,            400,    100),
     SCHED_TASK(ekf_check,             10,     75),
     SCHED_TASK(gpsglitch_check,       10,     50),
     SCHED_TASK(landinggear_update,    10,     75),
@@ -313,6 +314,66 @@ void Copter::update_batt_compass(void)
     }
 }
 
+void Copter::update_DYT(void)
+{
+    // simulation
+    bool sim_dyt_new_data = false;
+    static uint32_t last_sim_new_data_time_ms = 0;
+    if(control_mode != GUIDED) {
+        last_sim_new_data_time_ms = millis();
+        dyt.DYT_track_x = 0;
+        dyt.DYT_track_y = 0;
+    } else if (millis()- last_sim_new_data_time_ms < 15000) {
+        sim_dyt_new_data = true;
+        dyt.last_frame_ms = millis();
+        dyt.DYT_track_x = 30;
+        dyt.DYT_track_y = 15;
+    } else if (millis()- last_sim_new_data_time_ms < 30000) {
+        sim_dyt_new_data = true;
+        dyt.last_frame_ms = millis();
+        dyt.DYT_track_x = -10;
+        dyt.DYT_track_y = -20;
+    } else {
+        sim_dyt_new_data = false;
+        dyt.DYT_track_x = 0;
+        dyt.DYT_track_y = 0;
+    }
+
+    // end of simulation code
+
+    static uint32_t last_set_pos_target_time_ms = 0;
+    Vector3f target = Vector3f(0, 0, 0);
+    if(dyt.update() || sim_dyt_new_data) {
+        
+        Log_Write_DYT();
+
+        if(control_mode != GUIDED)
+            return;
+
+        float angle_y_deg = (int16_t)dyt.DYT_track_x;
+        float angle_z_deg = (int16_t)dyt.DYT_track_y;
+
+        Vector3f v = Vector3f(1.0f, tanf(radians(angle_y_deg)), tanf(radians(angle_z_deg)));
+        v = v / v.length();
+
+        const Matrix3f &rotMat = copter.ahrs.get_rotation_body_to_ned();
+        v = rotMat * v;
+
+        target = v * 10000.0f;  // distance 100m
+
+        target.z = -target.z;  // ned to neu
+
+        Vector3f current_pos = inertial_nav.get_position();
+        target = target + current_pos;
+
+        if(millis() - last_set_pos_target_time_ms > 500) {  // call in 2Hz
+            // wp_nav->set_wp_destination(target, false);
+            mode_guided.set_destination(target, false, 0, true, 0, false);
+            last_set_pos_target_time_ms= millis();
+        }
+    }
+}
+
 // Full rate logging of attitude, rate and pid loops
 // should be run at 400hz
 void Copter::fourhundred_hz_logging()
@@ -451,6 +512,8 @@ void Copter::one_hz_loop()
     // indicates that the sensor or subsystem is present but not
     // functioning correctly
     update_sensor_status_flags();
+
+    gcs().send_text(MAV_SEVERITY_CRITICAL,"DYT X:%d Y:%d",dyt.DYT_track_x,dyt.DYT_track_y);
 }
 
 // called at 50hz

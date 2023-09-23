@@ -83,6 +83,7 @@
 #include <AP_Arming/AP_Arming.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_TempCalibration/AP_TempCalibration.h>
+#include <AP_DYT/AP_DYT.h>   //添加包含 DYT 头文件
 
 // Configuration
 #include "defines.h"
@@ -230,6 +231,8 @@ private:
     DataFlash_Class DataFlash;
 
     AP_GPS gps;
+
+    AP_DYT dyt;    //添加 dyt 对象的定义
 
     // flight modes convenience array
     AP_Int8 *flight_modes;
@@ -792,6 +795,7 @@ private:
 
     // Log.cpp
     void Log_Write_Optflow();
+    void Log_Write_DYT();
     void Log_Write_Control_Tuning();
     void Log_Write_Performance();
     void Log_Write_Attitude();

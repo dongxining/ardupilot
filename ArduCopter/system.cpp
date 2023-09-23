@@ -161,6 +161,8 @@ void Copter::init_ardupilot()
     gps.set_log_gps_bit(MASK_LOG_GPS);
     gps.init(serial_manager);
 
+    dyt.init(serial_manager);   // 添加 dyt 的初始化
+
     init_compass();
 
 #if OPTFLOW == ENABLED
